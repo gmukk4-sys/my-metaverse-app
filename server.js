@@ -9,7 +9,7 @@ app.use(cors());
 app.use(express.static(path.join(__dirname)));
 
 // SPA 라우팅 지원 (Render 경로 에러 방지)
-app.get('*', (req, res) => {
+app.get('(.*)', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
