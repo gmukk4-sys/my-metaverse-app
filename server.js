@@ -6,10 +6,11 @@ const path = require('path');
 
 const app = express();
 app.use(cors());
+
+// index.html 및 정적 파일 제공 (Express 호환 정규식 처리)
 app.use(express.static(path.join(__dirname)));
 
-// SPA 라우팅 지원 (Render 경로 에러 방지)
-app.get('(.*)', (req, res) => {
+app.get(/(.*)/, (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
@@ -44,7 +45,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  // 닉네임 변경 수신 및 전달
   socket.on('changeName', (newName) => {
     if (players[socket.id]) {
       players[socket.id].name = newName;
@@ -55,7 +55,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  // 아바타 이미지 변경 수신 및 전달
   socket.on('changeAvatar', (base64Image) => {
     if (players[socket.id]) {
       players[socket.id].avatar = base64Image;
