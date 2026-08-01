@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>2D 메타버스 - 이미지 커스텀 캐릭터</title>
+    <title>헛둘 화공 테스트</title>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.0/dist/phaser.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
@@ -22,21 +22,30 @@
         }
         .controls {
             margin: 15px 0; display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+            background: #2d3748; padding: 12px 18px; border-radius: 8px; width: 800px;
         }
+        
+        /* 닉네임 입력창 스타일 */
+        .nickname-box {
+            display: flex; align-items: center; gap: 8px;
+        }
+        .input-text {
+            padding: 8px 12px; border-radius: 6px; border: 1px solid #4a5568;
+            background: #1a202c; color: white; font-size: 14px; outline: none;
+        }
+        .input-text:focus { border-color: #63b3ed; }
+
         .btn {
             background-color: #3182ce; color: white; border: none;
-            padding: 10px 18px; font-size: 14px; font-weight: bold;
+            padding: 8px 16px; font-size: 14px; font-weight: bold;
             border-radius: 6px; cursor: pointer; transition: all 0.2s;
         }
         .btn:hover { background-color: #2b6cb0; }
-        .btn-success { background-color: #38a169; }
-        .btn-success:hover { background-color: #2f855a; }
         .btn-danger { background-color: #e53e3e; }
         .btn-danger:hover { background-color: #c53030; }
 
-        /* 커스텀 파일 업로드 버튼 스타일 */
         .file-upload-label {
-            background-color: #805ad5; color: white; padding: 10px 18px;
+            background-color: #805ad5; color: white; padding: 8px 16px;
             font-size: 14px; font-weight: bold; border-radius: 6px;
             cursor: pointer; transition: all 0.2s; display: inline-block;
         }
@@ -81,15 +90,22 @@
 </head>
 <body>
 
-    <h2 style="margin-bottom: 12px;">🎮 2D 메타버스 + 캐릭터 이미지 변경</h2>
+    <h2 style="margin-bottom: 12px;">🎮 2D 메타버스 + 닉네임 설정</h2>
     <div id="game-container"></div>
 
     <div class="controls">
-        <!-- 이미지 업로드 버튼 -->
-        <label for="avatar-input" class="file-upload-label">🖼️ 내 캐릭터 이미지 변경하기</label>
+        <!-- 닉네임 설정 칸 -->
+        <div class="nickname-box">
+            <input type="text" id="nickname-input" class="input-text" placeholder="닉네임 입력" value="플레이어">
+            <button id="update-name-btn" class="btn">이름 변경</button>
+        </div>
+
+        <!-- 이미지 업로드 -->
+        <label for="avatar-input" class="file-upload-label">🖼️ 캐릭터 이미지 변경</label>
         <input type="file" id="avatar-input" accept="image/*">
 
-        <button id="share-btn" class="btn">🖥️ 내 화면 공유하기</button>
+        <!-- 화면 공유 버튼 -->
+        <button id="share-btn" class="btn" style="margin-left: auto;">🖥️ 내 화면 공유하기</button>
     </div>
 
     <div class="grid-section">
@@ -112,16 +128,18 @@
         const otherPlayers = {};
         let peer = null;
         let localStream = null;
-        let gameScene = null; // Phaser Scene 참조 변수
+        let gameScene = null;
+        let myName = "플레이어";
 
         const screensGrid = document.getElementById('screens-grid');
         const shareBtn = document.getElementById('share-btn');
         const avatarInput = document.getElementById('avatar-input');
+        const nameInput = document.getElementById('nickname-input');
+        const updateNameBtn = document.getElementById('update-name-btn');
         const modalOverlay = document.getElementById('modal-overlay');
         const largeVideo = document.getElementById('large-video');
         const modalTitle = document.getElementById('modal-title');
 
-        // Socket 및 PeerJS 연결
         socket.on('connect', () => {
             if (peer) peer.destroy();
             peer = new Peer(socket.id);
@@ -131,7 +149,8 @@
                 else call.answer();
 
                 call.on('stream', (remoteStream) => {
-                    addScreenToGrid(call.peer, remoteStream, `User ${call.peer.substring(0, 4)}의 화면`);
+                    const targetName = otherPlayers[call.peer] ? otherPlayers[call.peer].name : `User ${call.peer.substring(0, 4)}`;
+                    addScreenToGrid(call.peer, remoteStream, `${targetName}의 화면`);
                 });
             });
         });
@@ -147,11 +166,12 @@
             if (!peer) return;
             const call = peer.call(targetId, localStream || new MediaStream());
             call.on('stream', (remoteStream) => {
-                addScreenToGrid(targetId, remoteStream, `User ${targetId.substring(0, 4)}의 화면`);
+                const targetName = otherPlayers[targetId] ? otherPlayers[targetId].name : `User ${targetId.substring(0, 4)}`;
+                addScreenToGrid(targetId, remoteStream, `${targetName}의 화면`);
             });
         }
 
-        // --- Phaser 3 게임 설정 ---
+        // --- Phaser 3 게임 환경 ---
         const config = {
             type: Phaser.AUTO, width: 800, height: 450,
             parent: 'game-container', pixelArt: true,
@@ -168,12 +188,12 @@
         }
 
         function create() {
-            gameScene = this; // 전역 reference 저장
+            gameScene = this;
             this.add.image(400, 225, 'bgGrid');
 
             this.myPlayer = this.physics.add.sprite(400, 225, 'myPlayer');
             this.myPlayer.setCollideWorldBounds(true);
-            this.myLabel = this.add.text(400, 195, '나 (Me)', {
+            this.myLabel = this.add.text(400, 195, myName, {
                 fontSize: '12px', fill: '#ffffff', backgroundColor: '#00000088', padding: { x: 4, y: 2 }
             }).setOrigin(0.5);
 
@@ -181,12 +201,12 @@
 
             socket.on('currentPlayers', (players) => {
                 Object.keys(players).forEach((id) => {
-                    if (id !== socket.id) addOtherPlayer(gameScene, id, players[id].x, players[id].y, players[id].avatar);
+                    if (id !== socket.id) addOtherPlayer(gameScene, id, players[id].x, players[id].y, players[id].name, players[id].avatar);
                 });
             });
 
             socket.on('newPlayer', (playerInfo) => {
-                addOtherPlayer(gameScene, playerInfo.id, playerInfo.x, playerInfo.y, playerInfo.avatar);
+                addOtherPlayer(gameScene, playerInfo.id, playerInfo.x, playerInfo.y, playerInfo.name, playerInfo.avatar);
             });
 
             socket.on('playerMoved', (playerInfo) => {
@@ -196,7 +216,18 @@
                 }
             });
 
-            // 상대방이 캐릭터 이미지를 변경했을 때 수신
+            // 상대방이 이름 변경했을 때 수신
+            socket.on('playerRenamed', (data) => {
+                if (otherPlayers[data.id]) {
+                    otherPlayers[data.id].name = data.name;
+                    otherPlayers[data.id].label.setText(data.name);
+                    
+                    // 그리드 카드 이름도 업데이트
+                    const cardLabel = document.querySelector(`#card-${data.id} .label`);
+                    if (cardLabel) cardLabel.innerText = `${data.name}의 화면`;
+                }
+            });
+
             socket.on('playerAvatarChanged', (data) => {
                 if (otherPlayers[data.id]) {
                     updatePlayerTexture(gameScene, otherPlayers[data.id].sprite, data.avatarKey, data.avatarBase64);
@@ -224,7 +255,6 @@
             else if (this.cursors.down.isDown) vy = speed;
 
             this.myPlayer.setVelocity(vx, vy);
-            // 라벨 위치를 이미지 높이에 맞추어 유동적으로 조정
             const offset = (this.myPlayer.displayHeight / 2) + 10;
             this.myLabel.setPosition(this.myPlayer.x, this.myPlayer.y - offset);
 
@@ -233,7 +263,7 @@
             }
         }
 
-        function addOtherPlayer(scene, id, x, y, avatarBase64) {
+        function addOtherPlayer(scene, id, x, y, name, avatarBase64) {
             const avatarKey = `avatar-${id}`;
             let sprite = scene.physics.add.sprite(x, y, 'otherPlayer');
 
@@ -241,53 +271,60 @@
                 updatePlayerTexture(scene, sprite, avatarKey, avatarBase64);
             }
 
+            const displayName = name || `User ${id.substring(0, 4)}`;
             const offset = (sprite.displayHeight / 2) + 10;
-            const label = scene.add.text(x, y - offset, `User ${id.substring(0, 4)}`, {
+            const label = scene.add.text(x, y - offset, displayName, {
                 fontSize: '12px', fill: '#ffeb3b', backgroundColor: '#00000088', padding: { x: 4, y: 2 }
             }).setOrigin(0.5);
 
-            otherPlayers[id] = { sprite, label };
+            otherPlayers[id] = { sprite, label, name: displayName };
         }
 
-        // 텍스처(이미지) 동적 업데이트 헬퍼
         function updatePlayerTexture(scene, spriteObj, keyName, base64Data) {
-            if (scene.textures.exists(keyName)) {
-                scene.textures.remove(keyName);
-            }
+            if (scene.textures.exists(keyName)) scene.textures.remove(keyName);
             scene.textures.addBase64(keyName, base64Data);
-
             scene.textures.once(`addtexture-${keyName}`, () => {
                 spriteObj.setTexture(keyName);
-                // 게임에 맞게 캐릭터 사이즈 40x40 조절
                 spriteObj.setDisplaySize(40, 40);
             });
         }
 
-        // --- 🖼️ 파일 업로드 이벤트 처리 ---
+        // --- ✏️ 닉네임 변경 이벤트 ---
+        updateNameBtn.addEventListener('click', changeNickname);
+        nameInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') changeNickname(); });
+
+        function changeNickname() {
+            const newName = nameInput.value.trim();
+            if (!newName) return;
+
+            myName = newName;
+            gameScene.myLabel.setText(myName);
+            socket.emit('changeName', myName);
+
+            // 내 화면 공유 카드 이름 업데이트
+            const myCardLabel = document.querySelector(`#card-${socket.id} .label`);
+            if (myCardLabel) myCardLabel.innerText = `${myName}의 화면 (나)`;
+        }
+
+        // --- 🖼️ 이미지 업로드 이벤트 ---
         avatarInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (!file) return;
-
             const reader = new FileReader();
             reader.onload = (event) => {
                 const base64Image = event.target.result;
-                const myKey = `avatar-${socket.id}`;
-
-                // 1. 내 캐릭터 텍스처 변경 및 크기 조절
-                updatePlayerTexture(gameScene, gameScene.myPlayer, myKey, base64Image);
-
-                // 2. 서버로 내 캐릭터 이미지 전송하여 다른 사람 화면에도 반영
+                updatePlayerTexture(gameScene, gameScene.myPlayer, `avatar-${socket.id}`, base64Image);
                 socket.emit('changeAvatar', base64Image);
             };
             reader.readAsDataURL(file);
         });
 
-        // --- 화면 공유 제어 ---
+        // --- 🖥️ 화면 공유 이벤트 ---
         shareBtn.addEventListener('click', async () => {
             if (localStream) { stopScreenShare(); return; }
             try {
                 localStream = await navigator.mediaDevices.getDisplayMedia({ video: { cursor: "always" }, audio: false });
-                addScreenToGrid(socket.id, localStream, '내 공유 화면 (나)');
+                addScreenToGrid(socket.id, localStream, `${myName}의 화면 (나)`);
                 shareBtn.innerText = '🛑 공유 중단하기'; shareBtn.classList.add('btn-danger');
                 socket.emit('startScreenShare');
                 Object.keys(otherPlayers).forEach(targetId => peer.call(targetId, localStream));

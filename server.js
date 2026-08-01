@@ -8,6 +8,11 @@ const app = express();
 app.use(cors());
 app.use(express.static(path.join(__dirname)));
 
+// SPA 라우팅 지원 (Render 경로 에러 방지)
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
+
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: { origin: "*", methods: ["GET", "POST"] }
@@ -23,7 +28,8 @@ io.on('connection', (socket) => {
     id: socket.id,
     x: Math.floor(Math.random() * 600) + 100,
     y: Math.floor(Math.random() * 400) + 100,
-    avatar: null // 이미지 데이터 기본값
+    name: '플레이어',
+    avatar: null
   };
 
   socket.emit('currentPlayers', players);
@@ -38,11 +44,21 @@ io.on('connection', (socket) => {
     }
   });
 
-  // 유저가 자신의 아바타 이미지를 바꿨을 때
+  // 닉네임 변경 수신 및 전달
+  socket.on('changeName', (newName) => {
+    if (players[socket.id]) {
+      players[socket.id].name = newName;
+      socket.broadcast.emit('playerRenamed', {
+        id: socket.id,
+        name: newName
+      });
+    }
+  });
+
+  // 아바타 이미지 변경 수신 및 전달
   socket.on('changeAvatar', (base64Image) => {
     if (players[socket.id]) {
       players[socket.id].avatar = base64Image;
-      // 나를 제외한 모든 사람들에게 변경된 이미지 알림
       socket.broadcast.emit('playerAvatarChanged', {
         id: socket.id,
         avatarBase64: base64Image
@@ -71,5 +87,5 @@ io.on('connection', (socket) => {
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-  console.log(`🚀 메타버스 서버 실행 완료: http://localhost:${PORT}`);
+  console.log(`🚀 메타버스 서버 가동 완료: http://localhost:${PORT}`);
 });
