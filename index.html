@@ -186,8 +186,10 @@
         }
 
         // --- Phaser 초경량 세팅 ---
+        // 배경 맵(background.png)에 맞춘 게임 화면 크기 (정사각형)
+        const GAME_W = 800, GAME_H = 800;
         const config = {
-            type: Phaser.AUTO, width: 800, height: 400,
+            type: Phaser.AUTO, width: GAME_W, height: GAME_H,
             parent: 'game-container', pixelArt: true,
             physics: { default: 'arcade', arcade: { gravity: { y: 0 } } },
             scene: { preload: preload, create: create, update: update }
@@ -198,15 +200,21 @@
         function preload() {
             createDummySprite(this, 'defaultAvatar', '#48bb78');
             createGridBackground(this);
+            // 고정 배경 이미지: 프로젝트 폴더의 background.png 를 맵 배경으로 사용
+            // (파일이 없으면 아래 create()에서 기본 격자 배경으로 자동 대체)
+            this.load.image('mapBg', 'background.png');
         }
 
         function create() {
             gameScene = this;
-            this.add.image(400, 200, 'bgGrid');
+            // background.png 가 있으면 그걸, 없으면 기본 격자 배경을 맵 전체에 고정
+            const bgKey = this.textures.exists('mapBg') ? 'mapBg' : 'bgGrid';
+            this.bgImage = this.add.image(GAME_W / 2, GAME_H / 2, bgKey);
+            this.bgImage.setDisplaySize(GAME_W, GAME_H);
 
-            this.myPlayer = this.physics.add.sprite(400, 200, 'defaultAvatar');
+            this.myPlayer = this.physics.add.sprite(GAME_W / 2, GAME_H / 2, 'defaultAvatar');
             this.myPlayer.setCollideWorldBounds(true);
-            this.myLabel = this.add.text(400, 170, myName, {
+            this.myLabel = this.add.text(GAME_W / 2, GAME_H / 2 - 30, myName, {
                 fontSize: '11px', fill: '#ffffff', backgroundColor: '#000000aa', padding: { x: 3, y: 1 }
             }).setOrigin(0.5);
 
@@ -453,12 +461,12 @@
 
         function createGridBackground(scene) {
             const canvas = document.createElement('canvas');
-            canvas.width = 800; canvas.height = 400;
+            canvas.width = GAME_W; canvas.height = GAME_H;
             const ctx = canvas.getContext('2d');
-            ctx.fillStyle = '#222'; ctx.fillRect(0, 0, 800, 400);
+            ctx.fillStyle = '#222'; ctx.fillRect(0, 0, GAME_W, GAME_H);
             ctx.strokeStyle = '#2d3748'; ctx.lineWidth = 1;
-            for (let x = 0; x < 800; x += 32) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 400); ctx.stroke(); }
-            for (let y = 0; y < 400; y += 32) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(800, y); ctx.stroke(); }
+            for (let x = 0; x < GAME_W; x += 32) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, GAME_H); ctx.stroke(); }
+            for (let y = 0; y < GAME_H; y += 32) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(GAME_W, y); ctx.stroke(); }
             scene.textures.addBase64('bgGrid', canvas.toDataURL());
         }
     </script>
