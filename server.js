@@ -21,6 +21,8 @@ const io = new Server(server, {
 
 const players = {};
 const activeSharingUsers = {};
+const chatHistory = []; // 최근 채팅 최대 20개 보관
+const MAX_CHAT = 20;
 
 io.on('connection', (socket) => {
   console.log(`[접속] 유저 연결됨: ${socket.id}`);
@@ -35,7 +37,22 @@ io.on('connection', (socket) => {
 
   socket.emit('currentPlayers', players);
   socket.emit('activeScreenShares', Object.keys(activeSharingUsers));
+  socket.emit('chatHistory', chatHistory); // 접속 시 최근 채팅 전송
   socket.broadcast.emit('newPlayer', players[socket.id]);
+
+  socket.on('chatMessage', (text) => {
+    const p = players[socket.id];
+    if (!p || typeof text !== 'string' || !text.trim()) return;
+    const msg = {
+      id: socket.id,
+      name: p.name,
+      avatar: p.avatar, // 현재 캐릭터 이미지 사용
+      text: text.trim().substring(0, 500)
+    };
+    chatHistory.push(msg);
+    if (chatHistory.length > MAX_CHAT) chatHistory.shift();
+    io.emit('chatMessage', msg); // 보낸 사람 포함 전원에게 전송
+  });
 
   socket.on('playerMovement', (movementData) => {
     if (players[socket.id]) {
