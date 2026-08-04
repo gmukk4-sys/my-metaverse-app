@@ -85,6 +85,18 @@
         }
         #chat-input { flex: 1; width: auto; }
 
+        /* --- 입장 비밀번호 오버레이 --- */
+        #login-overlay {
+            position: fixed; inset: 0; background: #1a202c; z-index: 3000;
+            display: flex; justify-content: center; align-items: center;
+        }
+        #login-box {
+            background: #2d3748; padding: 30px 34px; border-radius: 10px;
+            text-align: center; box-shadow: 0 0 20px rgba(0,0,0,0.5);
+        }
+        #login-box h2 { font-size: 18px; margin-bottom: 16px; }
+        #login-error { color: #fc8181; font-size: 12px; min-height: 16px; margin-top: 10px; }
+
         #modal-overlay {
             display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
             background: rgba(0,0,0,0.85); z-index: 2000; justify-content: center; align-items: center;
@@ -94,6 +106,15 @@
     </style>
 </head>
 <body>
+
+    <div id="login-overlay">
+        <div id="login-box">
+            <h2>🔒 입장 비밀번호</h2>
+            <input type="password" id="login-input" class="input-text" placeholder="비밀번호" style="width: 180px; text-align: center;">
+            <button id="login-btn" class="btn" style="margin-left: 8px;">입장</button>
+            <div id="login-error"></div>
+        </div>
+    </div>
 
     <div id="main-area">
 
@@ -137,7 +158,7 @@
     </div>
 
     <script>
-        const socket = io();
+        const socket = io({ autoConnect: false }); // 비밀번호 입력 후에만 연결
         const otherPlayers = {};
         let peer = null;
         let localStream = null;
@@ -159,6 +180,36 @@
         const chatSendBtn = document.getElementById('chat-send-btn');
         const MAX_CHAT = 20; // 채팅은 최대 20개까지만 표시
 
+        // --- 입장 비밀번호 (1111) ---
+        const ENTRY_PASSWORD = '1111';
+        const loginOverlay = document.getElementById('login-overlay');
+        const loginInput = document.getElementById('login-input');
+        const loginBtn = document.getElementById('login-btn');
+        const loginError = document.getElementById('login-error');
+        function tryLogin() {
+            if (loginInput.value === ENTRY_PASSWORD) {
+                loginOverlay.style.display = 'none';
+                socket.connect(); // 비밀번호 통과 후에만 서버 연결
+            } else {
+                loginError.innerText = '비밀번호가 올바르지 않습니다.';
+                loginInput.value = '';
+                loginInput.focus();
+            }
+        }
+        loginBtn.addEventListener('click', tryLogin);
+        loginInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') tryLogin(); });
+        window.addEventListener('load', () => loginInput.focus());
+
+        // 입력창(닉네임/채팅)에 포커스되면 Phaser 키 가로채기 해제 → 스페이스(띄어쓰기) 정상 입력
+        [nameInput, chatInput].forEach((el) => {
+            el.addEventListener('focus', () => {
+                if (gameScene && gameScene.input && gameScene.input.keyboard) gameScene.input.keyboard.disableGlobalCapture();
+            });
+            el.addEventListener('blur', () => {
+                if (gameScene && gameScene.input && gameScene.input.keyboard) gameScene.input.keyboard.enableGlobalCapture();
+            });
+        });
+
         socket.on('connect', () => {
             if (peer) peer.destroy();
             peer = new Peer(socket.id);
@@ -172,17 +223,20 @@
             });
         });
 
-        socket.on('activeScreenShares', (ids) => { ids.forEach(id => { if (id !== socket.id) connectToSharingUser(id); }); });
-        socket.on('userStartedShare', (id) => { connectToSharingUser(id); });
+        // 공유 중인 사람에게 "화면 보내줘" 요청 → 공유자가 자기 스트림으로 우리를 호출한다.
+        // (항상 '공유자'가 caller 가 되므로, 접속 순서와 상관없이 안정적으로 화면이 뜬다)
+        socket.on('activeScreenShares', (ids) => { ids.forEach(id => requestScreenFrom(id)); });
+        socket.on('userStartedShare', (id) => requestScreenFrom(id));
         socket.on('userStoppedShare', (id) => { removeScreenFromGrid(id); });
 
-        function connectToSharingUser(targetId) {
-            if (!peer) return;
-            const call = peer.call(targetId, localStream || new MediaStream());
-            call.on('stream', (remoteStream) => {
-                const targetName = otherPlayers[targetId] ? otherPlayers[targetId].name : `User ${targetId.substring(0, 4)}`;
-                addScreenToGrid(targetId, remoteStream, `${targetName}의 화면`);
-            });
+        // 시청자의 요청을 받은 공유자가, 요청자에게 자신의 화면 스트림으로 전화를 건다.
+        socket.on('screenRequestedBy', (viewerId) => {
+            if (peer && localStream) peer.call(viewerId, localStream);
+        });
+
+        function requestScreenFrom(sharerId) {
+            if (!sharerId || sharerId === socket.id) return;
+            socket.emit('requestScreen', sharerId);
         }
 
         // --- Phaser 초경량 세팅 ---
@@ -352,18 +406,17 @@
             reader.readAsDataURL(file);
         });
 
-        // 초경량 화면 공유 (720p, 10 fps)
+        // 초경량 화면 공유 (해상도·프레임 대폭 하향: 최대 960x540, 3fps)
         shareBtn.addEventListener('click', async () => {
             if (localStream) { stopScreenShare(); return; }
             try {
                 localStream = await navigator.mediaDevices.getDisplayMedia({
-                    video: { cursor: "always", width: { max: 1280 }, height: { max: 720 }, frameRate: { max: 10 } },
+                    video: { cursor: "always", width: { max: 960 }, height: { max: 540 }, frameRate: { max: 3 } },
                     audio: false
                 });
                 addScreenToGrid(socket.id, localStream, `${myName}의 화면 (나)`);
                 shareBtn.innerText = '🛑 공유 중단'; shareBtn.classList.add('btn-danger');
-                socket.emit('startScreenShare');
-                Object.keys(otherPlayers).forEach(id => peer.call(id, localStream));
+                socket.emit('startScreenShare'); // 시청자들이 요청 → 아래 screenRequestedBy 로 전송
                 localStream.getVideoTracks()[0].onended = () => stopScreenShare();
             } catch (err) { console.error(err); }
         });

@@ -87,6 +87,13 @@ io.on('connection', (socket) => {
     socket.broadcast.emit('userStartedShare', socket.id);
   });
 
+  // 시청자가 특정 공유자에게 화면을 요청 → 공유자에게 요청자 id 전달
+  socket.on('requestScreen', (sharerId) => {
+    if (sharerId && players[sharerId]) {
+      io.to(sharerId).emit('screenRequestedBy', socket.id);
+    }
+  });
+
   socket.on('stopScreenShare', () => {
     delete activeSharingUsers[socket.id];
     socket.broadcast.emit('userStoppedShare', socket.id);
