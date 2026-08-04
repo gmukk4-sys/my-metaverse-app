@@ -110,7 +110,7 @@
     <div id="login-overlay">
         <div id="login-box">
             <h2>🔒 입장 비밀번호</h2>
-            <input type="password" id="login-input" class="input-text" placeholder="비밀번호" style="width: 180px; text-align: center;">
+            <input type="password" id="login-input" class="input-text" placeholder="비밀번호" autocomplete="off" inputmode="numeric" style="width: 180px; text-align: center;">
             <button id="login-btn" class="btn" style="margin-left: 8px;">입장</button>
             <div id="login-error"></div>
         </div>
@@ -189,6 +189,7 @@
         function tryLogin() {
             if (loginInput.value === ENTRY_PASSWORD) {
                 loginOverlay.style.display = 'none';
+                if (!game) game = new Phaser.Game(config); // 로그인 후 게임 시작
                 socket.connect(); // 비밀번호 통과 후에만 서버 연결
             } else {
                 loginError.innerText = '비밀번호가 올바르지 않습니다.';
@@ -249,7 +250,9 @@
             scene: { preload: preload, create: create, update: update }
         };
 
-        const game = new Phaser.Game(config);
+        // 게임은 로그인 성공 후에 시작한다 (아래 tryLogin 참고).
+        // 로그인 전 Phaser가 실행되면 아이패드에서 비밀번호 입력을 가로채는 문제가 있어 지연 생성.
+        let game = null;
 
         function preload() {
             createDummySprite(this, 'defaultAvatar', '#48bb78');
