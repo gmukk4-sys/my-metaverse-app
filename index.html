@@ -22,6 +22,8 @@
             border: 3px solid #4a5568; border-radius: 8px;
             background: #111;
         }
+        /* 캔버스 탭 이동 시 페이지 스크롤 방지(이동은 정상 동작) */
+        #game-container canvas { touch-action: none; }
         .controls {
             margin: 10px 0; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
             background: #2d3748; padding: 10px 15px; border-radius: 8px; width: 800px;
@@ -246,6 +248,8 @@
         const config = {
             type: Phaser.AUTO, width: GAME_W, height: GAME_H,
             parent: 'game-container', pixelArt: true,
+            // 터치 이벤트를 가로채지 않도록(capture:false) → 캔버스 밖 버튼/입력(이름·이미지·채팅)이 아이패드에서도 동작
+            input: { touch: { capture: false }, windowEvents: false },
             physics: { default: 'arcade', arcade: { gravity: { y: 0 } } },
             scene: { preload: preload, create: create, update: update }
         };
