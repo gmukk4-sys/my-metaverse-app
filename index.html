@@ -274,6 +274,13 @@
 
             this.cursors = this.input.keyboard.createCursorKeys();
 
+            // 터치/클릭 이동: 맵의 한 지점을 탭하면 그쪽으로 이동 (아이패드 사파리 등 키보드 없는 환경 지원)
+            this.moveTarget = null;
+            this.input.on('pointerdown', (pointer) => {
+                if (document.activeElement && document.activeElement.tagName === 'INPUT') return;
+                this.moveTarget = { x: pointer.worldX, y: pointer.worldY };
+            });
+
             socket.on('currentPlayers', (players) => {
                 Object.keys(players).forEach((id) => {
                     if (id !== socket.id) addOtherPlayer(gameScene, id, players[id].x, players[id].y, players[id].name, players[id].avatar);
@@ -328,6 +335,24 @@
                 else if (this.cursors.right.isDown) vx = speed;
                 if (this.cursors.up.isDown) vy = -speed;
                 else if (this.cursors.down.isDown) vy = speed;
+
+                // 키보드 조작이 있으면 탭 이동 목표 취소
+                if (vx !== 0 || vy !== 0) this.moveTarget = null;
+
+                // 키보드 입력이 없고 탭 목표가 있으면 그 지점으로 이동 (터치 조작)
+                if (vx === 0 && vy === 0 && this.moveTarget) {
+                    const dx = this.moveTarget.x - this.myPlayer.x;
+                    const dy = this.moveTarget.y - this.myPlayer.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist < 5) {
+                        this.moveTarget = null;
+                        // 도착 지점 최종 동기화
+                        socket.emit('playerMovement', { x: Math.round(this.myPlayer.x), y: Math.round(this.myPlayer.y) });
+                    } else {
+                        vx = (dx / dist) * speed;
+                        vy = (dy / dist) * speed;
+                    }
+                }
             }
 
             this.myPlayer.setVelocity(vx, vy);
